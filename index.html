@@ -57,7 +57,9 @@ const oscillator = audioCtx.createOscillator();
 oscillator.type = 'square';
 oscillator.frequency.setValueAtTime(110, audioCtx.currentTime); // value in hertz
 oscillator.connect(audioCtx.destination);
-oscillator.start();
+
+window.addEventListener('touchstart', () => oscillator.start());
+window.addEventListener('click', () => oscillator.start());
 
 const gain = audioCtx.createGain();
 oscillator.connect(gain);
