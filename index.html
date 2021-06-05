@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>seq</title>
+    <style>
+        body {
+            background-color: #1E1E1E;
+            color: #fff;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 32px;
+            font-weight: 700;
+        }
+        #pointer {
+            color: moccasin;
+        }
+    </style>
+</head>
+<body>
+    <div id="increment">00000000000000000000000000000000</div>
+    <div id="pointer">00000000000000000000000000000000</div>
+    <div id="new">00000000000000000000000000000000</div>
+    <script>
+let $increment = document.getElementById('increment');
+let $pointer = document.getElementById('pointer');
+let $new = document.getElementById('new');
+
+function toBinary32 (n) {
+    return (n).toString(2).padStart(32, '0');
+}
+
+function parse32 (n) {
+    return parseInt(n.match(/(.)\1+/g).map(s => s.substr(1)).join(''), 2)
+}
+
+function tone (freqA4 = 440, n = 0) {
+    return freqA4*2**(n/12)
+}
+
+
+function smoothSquare (x, a = 0.1) {
+    return Math.sin(x) / Math.sqrt(a + Math.sin(x)*Math.sin(x)) || 0
+}
+
+const table = Array.from({length: 32}, (_, i) => {
+    return smoothSquare(Math.PI / i);
+})
+
+// create web audio api context
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+// create Oscillator node
+const oscillator = audioCtx.createOscillator();
+
+oscillator.type = 'square';
+oscillator.frequency.setValueAtTime(110, audioCtx.currentTime); // value in hertz
+oscillator.connect(audioCtx.destination);
+oscillator.start();
+
+const gain = audioCtx.createGain();
+oscillator.connect(gain);
+gain.connect(audioCtx.destination);
+
+let i = 0;
+let keyframe = 16;
+(async () => {
+    while (true) {
+        
+        await (async (k) => {
+            while (k--) {
+                await new Promise((resolve) => setTimeout(resolve, keyframe / 32));
+                $pointer.innerHTML = toBinary32(1 << k >>> 0);
+
+                gain.gain.setValueAtTime(table[k], audioCtx.currentTime);
+            }
+        })(32);
+        const iBinary32 = toBinary32(i);
+        const int32 = parse32(iBinary32) % 89;
+        $increment.innerHTML = iBinary32;
+        $new.innerHTML = toBinary32(int32);
+        oscillator.frequency.setValueAtTime(tone(110, int32), audioCtx.currentTime); // value in hertz
+
+        i++;
+        await new Promise((resolve) => setTimeout(resolve, keyframe));
+    }
+})();
+
+    </script>
+</body>
+</html>
