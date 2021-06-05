@@ -54,40 +54,40 @@ const tone = memoize(
 );
 
 // Planing Sequences (Le Rabot) - Numberphile (https://www.youtube.com/watch?v=R4OvBB9KHMA)
-// function* sequence() {
-//     let index = 0;
-
-//     while (true) {
-//         yield parseInt(
-//             (index++)
-//                 .toString(2)
-//                 .match(/(.)\1+/g)
-//                 ?.reduce((s, v) => s + v.substr(1), ''),
-//             2
-//         ) || 0;
-//     }
-// }
-function sequence () {
+function* sequence() {
     let index = 0;
 
-    return {
-        next() {
-            return {
-                value: parseInt(
-                    (index++)
-                        .toString(2)
-                        .match(/(.)\1+/g)
-                        ?.reduce((s, v) => s + v.substr(1), ''),
-                    2
-                ) || 0
-            }
-        }
+    while (true) {
+        yield parseInt(
+            (index++)
+                .toString(2)
+                .match(/(.)\1+/g)
+                ?.reduce((s, v) => s + v.substr(1), ''),
+            2
+        ) || 0;
     }
 }
+// function sequence () {
+//     let index = 0;
+
+//     return {
+//         next() {
+//             return {
+//                 value: parseInt(
+//                     (index++)
+//                         .toString(2)
+//                         .match(/(.)\1+/g)
+//                         ?.reduce((s, v) => s + v.substr(1), ''),
+//                     2
+//                 ) || 0
+//             }
+//         }
+//     }
+// }
 
 const generator = sequence();
 
-const ctx = new AudioContext();
+const ctx = new AudioContext() || new webkitAudioContext();
 
 const oscillators = Array.from(
     { length: 1 }, 
