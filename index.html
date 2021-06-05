@@ -4,91 +4,199 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>seq</title>
+    <title>Sequence</title>
     <style>
-        body {
-            background-color: #1E1E1E;
-            color: #fff;
-            font-family: Arial, Helvetica, sans-serif;
-            font-size: 32px;
-            font-weight: 700;
-        }
-        #pointer {
-            color: moccasin;
-        }
+html, body { height: 100%; }
+body {
+    background-color: #1E1E1E;
+    color: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    margin: 0;
+}
+canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+}
+div {
+    z-index: 1;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+body.started div { display: none; }
     </style>
 </head>
 <body>
-    <div id="increment">00000000000000000000000000000000</div>
-    <div id="pointer">00000000000000000000000000000000</div>
-    <div id="new">00000000000000000000000000000000</div>
-    <script>
-let $increment = document.getElementById('increment');
-let $pointer = document.getElementById('pointer');
-let $new = document.getElementById('new');
-
-function toBinary32 (n) {
-    return (n).toString(2).padStart(32, '0');
-}
-
-function parse32 (n) {
-    return parseInt(n.match(/(.)\1+/g).map(s => s.substr(1)).join(''), 2)
-}
-
-function tone (freqA4 = 440, n = 0) {
-    return freqA4*2**(n/12)
-}
-
-
-function smoothSquare (x, a = 0.1) {
-    return Math.sin(x) / Math.sqrt(a + Math.sin(x)**2) || 0
-}
-
-const table = Array.from({length: 32}, (_, i) => {
-    return smoothSquare(Math.PI / i);
-})
-
-// create web audio api context
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-// create Oscillator node
-const oscillator = audioCtx.createOscillator();
-
-oscillator.type = 'square';
-oscillator.frequency.setValueAtTime(110, audioCtx.currentTime); // value in hertz
-oscillator.connect(audioCtx.destination);
-
-window.addEventListener('touchstart', () => oscillator.start());
-window.addEventListener('click', () => oscillator.start());
-
-const gain = audioCtx.createGain();
-oscillator.connect(gain);
-gain.connect(audioCtx.destination);
-
-let i = 0;
-let keyframe = 69.29565774421802;
-(async () => {
-    while (true) {
-        
-        await (async (k) => {
-            while (k--) {
-                await new Promise((resolve) => setTimeout(resolve, keyframe / 32));
-                $pointer.innerHTML = toBinary32(1 << k >>> 0);
-
-                gain.gain.setValueAtTime(table[k], audioCtx.currentTime);
-            }
-        })(32);
-        const iBinary32 = toBinary32(i);
-        const int32 = parse32(iBinary32) % 89;
-        $increment.innerHTML = iBinary32;
-        $new.innerHTML = toBinary32(int32);
-        oscillator.frequency.setValueAtTime(tone(110, int32), audioCtx.currentTime); // value in hertz
-
-        i++;
-        await new Promise((resolve) => setTimeout(resolve, keyframe));
+<div id="start">Tap to play!</div>
+<script>
+const memoize = (fn) => {
+    const cache = new Map();
+    return (...args) => {
+        if (cache.has(args.join())) {
+            return cache.get(args.join());
+        }
+        let result = fn(...args);
+        cache.set(args.join(), result);
+        return result;
     }
-})();
+}
 
-    </script>
+const tone = memoize(
+    (freqA4 = 440, n = 0) => freqA4 * 2 ** (n / 12)
+);
+
+// Planing Sequences (Le Rabot) - Numberphile (https://www.youtube.com/watch?v=R4OvBB9KHMA)
+function* sequence() {
+    let index = 0;
+
+    while (true) {
+        yield parseInt(
+            (index++)
+                .toString(2)
+                .match(/(.)\1+/g)
+                ?.reduce((s, v) => s + v.substr(1), ''),
+            2
+        ) || 0;
+    }
+}
+
+const generator = sequence();
+
+const ctx = new AudioContext();
+
+const oscillators = Array.from(
+    { length: 1 }, 
+    (_, i) => {
+        const oscillator = ctx.createOscillator();
+
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(55 * 2 ** i, ctx.currentTime); // value in hertz
+        oscillator.connect(ctx.destination);
+
+        return oscillator;
+    }
+);
+
+const gain = ctx.createGain();
+oscillators.forEach((oscillator) => oscillator.connect(gain));
+gain.connect(ctx.destination);
+
+const analyser = ctx.createAnalyser();
+analyser.fftSize = 2048;
+const bufferLength = analyser.frequencyBinCount;
+const dataArray = new Uint8Array(bufferLength);
+analyser.getByteTimeDomainData(dataArray);
+oscillators.forEach((oscillator) => oscillator.connect(analyser));
+
+function run(updateFn = () => {}, renderFn = () => {}, interval = 250) {
+    oscillators.forEach((oscillator) => oscillator.start());
+    document.body.classList.add('started');
+
+    let lastUpdated = performance.now();
+
+    const loop = () => {
+        window.requestAnimationFrame(loop)
+
+        const now = performance.now()
+        if (interval < now - lastUpdated) {
+            (typeof updateFn === 'function') && updateFn();
+            lastUpdated = now
+        }
+        (typeof renderFn === 'function') && renderFn();
+    }
+    loop();
+}
+
+const canvas = document.createElement('canvas');
+const resize = () => {
+    canvas.width = document.body.clientWidth;
+    canvas.height = document.body.clientHeight;
+}
+resize();
+document.body.appendChild(canvas);
+const canvasCtx = canvas.getContext('2d');
+
+const update = () => {
+    const { value } = generator.next();
+
+    oscillators.forEach(
+        (oscillator, i) => oscillator.frequency.setValueAtTime(
+            tone(55 * (2 ** i), value), 
+            ctx.currentTime
+        )
+    );
+};
+
+const render = () => {
+    analyser.getByteFrequencyData(dataArray);
+    canvasCtx.fillStyle = "rgb(200, 200, 200)";
+    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+    canvasCtx.lineWidth = 2;
+    canvasCtx.strokeStyle = "#f00";
+
+    canvasCtx.beginPath();
+
+    var sliceWidth = canvas.width * 1.0 / bufferLength;
+    var x = 0;
+
+    for (var i = 0; i < bufferLength; i++) {
+
+        var v = dataArray[i] / 128.0;
+        var y = v * canvas.height / 2;
+
+        if (i === 0) {
+        canvasCtx.moveTo(x, y);
+        } else {
+        canvasCtx.lineTo(x, y);
+        }
+
+        x += sliceWidth;
+    }
+
+    canvasCtx.lineTo(canvas.width, canvas.height / 2);
+    canvasCtx.stroke();
+
+    analyser.getByteTimeDomainData(dataArray);
+    canvasCtx.lineWidth = 2;
+    canvasCtx.strokeStyle = "#00f";
+
+    canvasCtx.beginPath();
+
+    var sliceWidth = canvas.width * 1.0 / bufferLength;
+    var x = 0;
+
+    for (var i = 0; i < bufferLength; i++) {
+
+        var v = dataArray[i] / 128.0;
+        var y = v * canvas.height / 2;
+
+        if (i === 0) {
+        canvasCtx.moveTo(x, y);
+        } else {
+        canvasCtx.lineTo(x, y);
+        }
+
+        x += sliceWidth;
+    }
+
+    canvasCtx.lineTo(canvas.width, canvas.height / 2);
+    canvasCtx.stroke();
+}
+
+const div = document.getElementById('start');
+div.addEventListener('click', () => run(update, render, 64));
+div.addEventListener('touchstart', () => run(update, render, 64));
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', resize);
+</script>
 </body>
 </html>
