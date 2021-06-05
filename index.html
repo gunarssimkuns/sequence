@@ -192,7 +192,7 @@ const render = () => {
     canvasCtx.lineTo(canvas.width, canvas.height / 2);
     canvasCtx.stroke();
 }
-run(update, render, 64);
+// run(update, render, 64);
 const div = document.getElementById('start');
 div.addEventListener('click', () => run(update, render, 64));
 div.addEventListener('touchstart', () => run(update, render, 64));
