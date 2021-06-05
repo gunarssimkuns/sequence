@@ -88,7 +88,7 @@ const oscillators = Array.from(
 const gain = ctx.createGain();
 oscillators.forEach((oscillator) => oscillator.connect(gain));
 gain.connect(ctx.destination);
-gain.gain.setValueAtTime(1, audioCtx.currentTime);
+gain.gain.setValueAtTime(1, ctx.currentTime);
 
 const analyser = ctx.createAnalyser();
 analyser.fftSize = 2048;
